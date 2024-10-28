@@ -1,48 +1,70 @@
 #!/usr/bin/python3
+""" Log parsing module
 """
-Write a script that reads stdin line by line and computes metrics:
-Input format: <IP Address> - [<date>] "GET /projects/260 HTTP/1.1"
-<status code> <file size> (if the formt is not this one,the line mst be skiped)
-After every 10 lines and/or a keyboard interruption (CTRL + C), print these
-statistics from the beginning:Total file size: File size: <total size>
-where <total size> is the sum of all previous <file size> Number of lines
-by status code: possible status code: 200, 301, 400, 401, 403, 404, 405 and 500
-if a status code doesn’t appear or is not an integer, don’t print anything for
-this status code format: <status code>: <number>
-status codes should be printed in ascending order
-"""
-
-
 import sys
+from operator import itemgetter
 
-cache = {'200': 0, '301': 0, '400': 0, '401': 0,
-         '403': 0, '404': 0, '405': 0, '500': 0}
-# Initializes a dict named cache with stat codes as keys and
-# their counts as values, all swt to 0 initially
-total_size = 0
-counter = 0
 
-try:
-    for line in sys.stdin:
-        line_list = line.split(" ")
-        if len(line_list) > 4:
-            code = line_list[-2]
-            size = int(line_list[-1])
-            if code in cache.keys():
-                cache[code] += 1
-            total_size += size
-            counter += 1
-        if counter == 10:
-            counter = 0
-            print('File size: {}'.format(total_size))
-            for key, value in sorted(cache.items()):
-                if value != 0:
-                    print('{}: {}'.format(key, value))
-except Exception as err:
-    pass
+def log_parser(log):
+    """ Parse log and return status codes and file sizes
+    """
+    log_fields = log.split()
+    status_code = log_fields[-2]
+    file_size = int(log_fields[-1])
+    return status_code, file_size
 
-finally:
-    print('File size: {}'.format(total_size))
-    for key, value in sorted(cache.items()):
-        if value != 0:
-            print('{}: {}'.format(key, value))
+
+def validate_format(log):
+    """ Validate log format
+    """
+    return False if len(log.split()) < 7 else True
+
+
+def validate_status_code(status_code):
+    """ Validate status code
+    """
+    valid_status_codes = ['200', '301', '400', '401',
+                         '403', '404', '405', '500']
+    return True if status_code.isnumeric() else False
+
+
+def print_log(file_size, status_codes) -> None:
+    """
+    Prints out log files
+    """
+    sorted_status_codes = sorted(status_codes.items(), key=itemgetter(0))
+    print('File size: {}'.format(file_size))
+    for code_count in sorted_status_codes:
+        key = code_count[0]
+        value = code_count[1]
+        print("{}: {}".format(key, value))
+
+
+def main():
+    """
+    Reads logs from std in and prints out statistic
+    on status code and file size
+    """
+    status_codes_count = {}
+    total_size = 0
+    log_count = 0
+    try:
+        for log in sys.stdin:
+            log_count += 1
+            if not validate_format(log):
+                continue
+            status_code, file_size = log_parser(log)
+            total_size += file_size
+            if validate_status_code(status_code):
+                entry = {status_code:
+                         status_codes_count.get(status_code, 0) + 1}
+                status_codes_count.update(entry)
+            if not log_count % 10:
+                print_log(total_size, status_codes_count)
+    except KeyboardInterrupt:
+        print_log(total_size, status_codes_count)
+    print_log(total_size, status_codes_count)
+
+
+if __name__ == '__main__':
+    main()
